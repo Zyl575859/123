@@ -146,11 +146,33 @@ echo   3. 选择 Public
 echo   4. 点击 Create repository
 echo   5. 复制仓库地址
 echo.
-set /p repo_url="请输入GitHub仓库地址: "
+set /p repo_url="请输入GitHub仓库地址（完整地址，例如: https://github.com/用户名/仓库名.git）: "
 if "!repo_url!"=="" (
     echo [取消] 未输入仓库地址
     pause
     exit /b 0
+)
+
+REM 验证仓库地址格式
+echo !repo_url! | findstr /i "github.com" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [错误] 仓库地址格式不正确，应包含 github.com
+    pause
+    exit /b 1
+)
+
+REM 检查是否包含仓库名（不能只是用户名）
+echo !repo_url! | findstr /i "/.*\.git$" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [警告] 仓库地址可能不完整，应包含仓库名
+    echo 例如: https://github.com/用户名/仓库名.git
+    echo.
+    set /p confirm="确认继续? (Y/n): "
+    if /i not "!confirm!"=="Y" (
+        echo [取消] 已取消
+        pause
+        exit /b 0
+    )
 )
 
 REM 移除旧的远程仓库
@@ -188,12 +210,12 @@ echo   2. 密码: 输入Personal Access Token（不是GitHub密码）
 echo.
 echo   如何获取Token:
 echo   1. 访问: https://github.com/settings/tokens
-echo   2. Generate new token ^(classic^)
+echo   2. Generate new token (classic)
 echo   3. 勾选 repo 权限
 echo   4. 生成并复制token
 echo.
-echo 按任意键继续上传...
-pause >nul
+set /p continue_upload="按回车键继续上传（或输入q退出）: "
+if /i "!continue_upload!"=="q" exit /b 0
 
 git push -u origin main
 if %errorlevel% == 0 (
@@ -214,10 +236,24 @@ if %errorlevel% == 0 (
     echo   [失败] 上传失败
     echo ========================================
     echo.
-    echo 可能的原因:
-    echo   1. 认证失败 - 请使用Personal Access Token
-    echo   2. 网络问题 - 请检查网络连接
-    echo   3. 仓库地址错误 - 请确认地址正确
+    echo 可能的原因和解决方法:
+    echo.
+    echo 1. 仓库不存在或地址错误
+    echo    解决方法:
+    echo    - 确认仓库地址完整: https://github.com/用户名/仓库名.git
+    echo    - 在GitHub上创建仓库: https://github.com/new
+    echo    - 确认仓库名拼写正确
+    echo.
+    echo 2. 认证失败
+    echo    解决方法:
+    echo    - 使用Personal Access Token（不是GitHub密码）
+    echo    - 获取Token: https://github.com/settings/tokens
+    echo    - Generate new token (classic) - 勾选repo权限
+    echo.
+    echo 3. 网络问题
+    echo    解决方法:
+    echo    - 检查网络连接
+    echo    - 尝试使用VPN或代理
     echo.
     echo 详细说明: 上传代码到GitHub_详细步骤.md
     echo.
