@@ -47,13 +47,19 @@ def check_docker():
         return False, "Docker未安装"
     
     # 检查Docker是否运行
-    result = subprocess.run(
-        ['docker', 'ps'],
-        capture_output=True,
-        text=True
-    )
-    if result.returncode != 0:
-        return False, "Docker未运行，请先启动Docker Desktop"
+    try:
+        result = subprocess.run(
+            ['docker', 'ps'],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='ignore',
+            timeout=5
+        )
+        if result.returncode != 0:
+            return False, "Docker未运行，请先启动Docker Desktop"
+    except Exception as e:
+        return False, f"Docker检查失败: {str(e)}"
     
     return True, "Docker可用"
 
@@ -63,13 +69,19 @@ def check_wsl():
         return False, "WSL未安装"
     
     # 检查WSL是否可用
-    result = subprocess.run(
-        ['wsl', '--list'],
-        capture_output=True,
-        text=True
-    )
-    if result.returncode != 0:
-        return False, "WSL不可用"
+    try:
+        result = subprocess.run(
+            ['wsl', '--list'],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='ignore',
+            timeout=5
+        )
+        if result.returncode != 0:
+            return False, "WSL不可用"
+    except Exception as e:
+        return False, f"WSL检查失败: {str(e)}"
     
     return True, "WSL可用"
 
@@ -81,7 +93,9 @@ def build_with_docker():
     result = subprocess.run(
         ['docker', 'images', 'kivy/buildozer', '--format', '{{.Repository}}:{{.Tag}}'],
         capture_output=True,
-        text=True
+        text=True,
+        encoding='utf-8',
+        errors='ignore'
     )
     
     if 'kivy/buildozer' not in result.stdout:
@@ -221,7 +235,18 @@ def main():
     else:
         print(f"[错误] {docker_msg}")
         print(f"[错误] {wsl_msg}")
-        print("\n请安装以下工具之一：")
+        print("\n" + "="*60)
+        print("  推荐：使用在线构建方法（最简单）")
+        print("="*60)
+        print("\n您没有Docker和WSL环境，推荐使用在线构建：")
+        print("  1. 运行: python 在线构建APK.py")
+        print("  2. 或双击: 推荐_在线构建.bat")
+        print("\n在线构建的优点：")
+        print("  ✅ 完全不需要本地环境")
+        print("  ✅ 不需要Docker/WSL")
+        print("  ✅ 云端自动构建")
+        print("  ✅ 最简单！")
+        print("\n或者安装以下工具之一进行本地构建：")
         print("  1. Docker Desktop: https://www.docker.com/products/docker-desktop")
         print("  2. WSL: 在PowerShell（管理员）运行: wsl --install")
         input("\n按回车键退出...")

@@ -1,0 +1,22 @@
+[tool.briefcase]
+project_name = "SSH工具"
+bundle = "org.liulang"
+version = "1.0.1"
+url = "https://github.com/liulang/ssh-tool"
+license = "MIT"
+description = "SSH连接工具Android版本"
+
+[tool.briefcase.app.ssh_tool]
+formal_name = "SSH工具"
+description = "SSH连接工具，支持服务器管理和命令执行"
+source = "main.py"
+license = "MIT"
+
+[tool.briefcase.app.ssh_tool.android]
+requires = [
+    "paramiko>=2.9.0",
+]
+permissions = [
+    "INTERNET",
+    "ACCESS_NETWORK_STATE",
+]
