@@ -7,7 +7,6 @@ on:
     paths:
       - 'main.py'
       - 'buildozer.spec'
-      - '.github/workflows/build_apk.yml'
 
 jobs:
   build:
@@ -42,4 +41,3 @@ jobs:
         name: android-apk
         path: bin/*.apk
         retention-days: 30
-
