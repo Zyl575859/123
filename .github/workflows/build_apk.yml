@@ -4,9 +4,6 @@ on:
   workflow_dispatch:
   push:
     branches: [ main, master ]
-    paths:
-      - 'main.py'
-      - 'buildozer.spec'
 
 jobs:
   build:
