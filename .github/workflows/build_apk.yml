@@ -28,15 +28,11 @@ jobs:
         pip3 install --user buildozer cython
         echo "$HOME/.local/bin" >> $GITHUB_PATH
         
-    - name: 设置Android SDK环境变量
+    - name: 设置Android SDK环境变量和许可证
       run: |
         mkdir -p ~/.android
         touch ~/.android/repositories.cfg
-        
-    - name: 接受Android SDK许可证
-      run: |
-        yes | sdkmanager --licenses || true
-        # 如果sdkmanager不存在，使用buildozer自动处理
+        # 预先创建许可证文件目录和文件（buildozer会自动使用）
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
         mkdir -p $ANDROID_HOME/licenses
         echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
@@ -46,12 +42,12 @@ jobs:
       run: |
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
         export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools
+        # buildozer会自动下载SDK，许可证文件已预先准备好
         buildozer android debug
-        
+      
     - name: 上传APK
       uses: actions/upload-artifact@v4
       with:
         name: android-apk
         path: bin/*.apk
         retention-days: 30
-
