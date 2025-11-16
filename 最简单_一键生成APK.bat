@@ -10,7 +10,7 @@ echo ========================================
 echo   最简单方法：一键生成APK
 echo ========================================
 echo.
-echo [提示] 这个方法会：
+echo [提示] 这个方法会:
 echo   1. 自动检查并修复所有问题
 echo   2. 自动上传到GitHub
 echo   3. 自动触发构建
@@ -94,7 +94,7 @@ if not exist ".github\workflows\build_apk.yml" (
 
 REM 添加并提交
 echo [提交] 正在提交文件...
-git add . >nul 2>&1
+git add main.py buildozer.spec .github\workflows\build_apk.yml >nul 2>&1
 git commit -m "自动提交" >nul 2>&1
 if %errorlevel% neq 0 (
     git commit --allow-empty -m "初始提交" >nul 2>&1
@@ -129,18 +129,44 @@ echo [上传] 正在上传到GitHub...
 echo [提示] 需要输入GitHub用户名和Token
 echo [提示] 获取Token: https://github.com/settings/tokens
 echo.
+echo [提示] 如果网络连接失败，可以:
+echo   1. 检查网络连接
+echo   2. 使用VPN或代理
+echo   3. 稍后重试
+echo.
 git push -u origin main
 if %errorlevel% neq 0 (
     echo.
     echo [失败] 上传失败
     echo.
-    echo 请检查:
-    echo   1. GitHub仓库地址是否正确
-    echo   2. 是否使用了Personal Access Token
-    echo   3. 网络连接是否正常
+    echo 可能的原因:
+    echo   1. 网络连接问题 - 请检查网络或使用VPN
+    echo   2. GitHub仓库地址错误 - 请确认地址正确
+    echo   3. 认证失败 - 请使用Personal Access Token
     echo.
-    pause
-    exit /b 1
+    echo [解决方案]
+    echo   方法1: 检查网络后重试
+    echo   方法2: 使用GitHub Desktop上传（更简单）
+    echo     下载: https://desktop.github.com
+    echo   方法3: 手动在GitHub网页上传文件
+    echo.
+    set /p retry="是否重试? (Y/n): "
+    if /i "!retry!"=="Y" (
+        echo.
+        echo [重试] 正在重新上传...
+        git push -u origin main
+        if %errorlevel% neq 0 (
+            echo [失败] 重试失败
+            echo.
+            echo [建议] 使用GitHub Desktop或手动上传
+            pause
+            exit /b 1
+        )
+    ) else (
+        echo [取消] 已取消
+        pause
+        exit /b 0
+    )
 )
 
 echo.
