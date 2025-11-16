@@ -106,6 +106,46 @@ jobs:
         python3 -c "import cython; print('✅ cython 模块可用')" || echo "❌ cython 模块不可用"
         echo "=========================================="
         
+    - name: 诊断路径和依赖
+      run: |
+        # 设置环境变量
+        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+        export ANDROID_NDK=$HOME/.buildozer/android/platform/android-ndk-r25b
+        export ANDROID_SDK_ROOT=$ANDROID_HOME
+        export PATH=$PATH:$ANDROID_HOME/tools/bin:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin
+        export PYTHONPATH=$HOME/.local/lib/python3.10/site-packages:$PYTHONPATH
+        
+        echo "=========================================="
+        echo "诊断路径和依赖"
+        echo "=========================================="
+        echo ""
+        echo "1. 检查工作目录："
+        pwd
+        ls -la
+        echo ""
+        echo "2. 检查 buildozer.spec："
+        if [ -f "buildozer.spec" ]; then
+          echo "✅ buildozer.spec 存在"
+          cat buildozer.spec
+        else
+          echo "❌ buildozer.spec 不存在"
+        fi
+        echo ""
+        echo "3. 检查 Python 模块："
+        python3 -c "import pythonforandroid; print('✅ pythonforandroid 模块可用'); print('路径:', pythonforandroid.__file__)" || echo "❌ pythonforandroid 模块不可用"
+        python3 -c "from pythonforandroid.toolchain import ToolchainCL; print('✅ ToolchainCL 可导入')" || echo "❌ ToolchainCL 导入失败"
+        echo ""
+        echo "4. 检查路径："
+        echo "  ANDROID_HOME=$ANDROID_HOME"
+        echo "  ANDROID_NDK=$ANDROID_NDK"
+        echo "  工作目录=$(pwd)"
+        echo "  .buildozer 目录:"
+        ls -la .buildozer 2>/dev/null || echo "  .buildozer 目录不存在"
+        echo ""
+        echo "5. 尝试直接运行 pythonforandroid 命令（测试）："
+        python3 -m pythonforandroid.toolchain --help 2>&1 | head -20 || echo "命令执行失败"
+        echo "=========================================="
+        
     - name: 构建APK
       run: |
         # 清理可能冲突的环境变量
@@ -123,6 +163,10 @@ jobs:
         # 确保 Python 可以找到所有模块
         export PYTHONPATH=$HOME/.local/lib/python3.10/site-packages:$PYTHONPATH
         
+        # 确保工作目录正确
+        cd $GITHUB_WORKSPACE
+        echo "当前工作目录: $(pwd)"
+        
         echo "=========================================="
         echo "开始构建 APK..."
         echo "=========================================="
@@ -132,12 +176,13 @@ jobs:
         echo "  ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
         echo "  PATH=$PATH"
         echo "  PYTHONPATH=$PYTHONPATH"
+        echo "  工作目录=$(pwd)"
         echo "=========================================="
         echo ""
         
-        # 运行构建，保存完整日志
+        # 运行构建，保存完整日志，使用详细模式
         set -o pipefail
-        buildozer android debug 2>&1 | tee build.log
+        buildozer -v android debug 2>&1 | tee build.log
         BUILD_EXIT_CODE=${PIPESTATUS[0]}
         
         echo ""
@@ -190,7 +235,13 @@ jobs:
           echo "7. 查找 Traceback 和异常信息："
           grep -A 20 -i "traceback\|exception\|traceback" build.log | tail -50 || true
           echo ""
-          echo "8. 构建日志最后 300 行（完整上下文）："
+          echo "8. 查找路径相关错误："
+          grep -i "path\|路径\|directory\|目录\|not found\|不存在" build.log | tail -30 || true
+          echo ""
+          echo "9. 查找 storage-dir 相关错误："
+          grep -i "storage-dir\|storage_dir\|storage dir" build.log | tail -20 || true
+          echo ""
+          echo "10. 构建日志最后 300 行（完整上下文）："
           tail -300 build.log
           echo ""
           echo "=========================================="
