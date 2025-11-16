@@ -151,23 +151,47 @@ jobs:
           echo "构建失败！详细错误分析..."
           echo "=========================================="
           echo ""
-          echo "1. 查找所有错误关键词："
-          grep -i "error\|failed\|失败\|错误\|exception\|traceback" build.log | tail -50 || true
+          
+          # 查找 pythonforandroid.toolchain create 命令的位置
+          TOOLCHAIN_LINE=$(grep -n "pythonforandroid.toolchain create" build.log | tail -1 | cut -d: -f1)
+          if [ -n "$TOOLCHAIN_LINE" ]; then
+            echo "找到 pythonforandroid.toolchain create 命令在第 $TOOLCHAIN_LINE 行"
+            echo "显示该命令前后的 100 行上下文："
+            echo ""
+            START_LINE=$((TOOLCHAIN_LINE - 50))
+            if [ $START_LINE -lt 1 ]; then
+              START_LINE=1
+            fi
+            END_LINE=$((TOOLCHAIN_LINE + 100))
+            sed -n "${START_LINE},${END_LINE}p" build.log
+            echo ""
+            echo "=========================================="
+            echo ""
+          fi
+          
+          echo "1. 查找所有错误关键词（最后 100 行）："
+          grep -i "error\|failed\|失败\|错误\|exception\|traceback" build.log | tail -100 || true
           echo ""
-          echo "2. 查找 pythonforandroid 相关错误："
-          grep -i "pythonforandroid\|toolchain\|p4a" build.log | tail -30 || true
+          echo "2. 查找 pythonforandroid 相关错误（最后 50 行）："
+          grep -i "pythonforandroid\|toolchain\|p4a" build.log | tail -50 || true
           echo ""
-          echo "3. 查找编译错误："
+          echo "3. 查找命令失败信息："
+          grep -i "命令失败\|command failed\|无法执行\|cannot execute" build.log | tail -30 || true
+          echo ""
+          echo "4. 查找编译错误："
           grep -i "gcc\|g++\|clang\|compile\|compilation" build.log | tail -30 || true
           echo ""
-          echo "4. 查找导入错误："
-          grep -i "import\|module\|no module\|importerror" build.log | tail -30 || true
+          echo "5. 查找导入错误："
+          grep -i "import\|module\|no module\|importerror\|modulenotfound" build.log | tail -30 || true
           echo ""
-          echo "5. 查找内存错误："
+          echo "6. 查找内存错误："
           grep -i "killed\|memory\|oom\|out of memory" build.log | tail -20 || true
           echo ""
-          echo "6. 构建日志最后 200 行："
-          tail -200 build.log
+          echo "7. 查找 Traceback 和异常信息："
+          grep -A 20 -i "traceback\|exception\|traceback" build.log | tail -50 || true
+          echo ""
+          echo "8. 构建日志最后 300 行（完整上下文）："
+          tail -300 build.log
           echo ""
           echo "=========================================="
           echo "请查看上面的错误信息以诊断问题"
@@ -177,6 +201,22 @@ jobs:
           echo "保存完整构建日志..."
           mkdir -p logs
           cp build.log logs/build.log || true
+          
+          # 也保存错误摘要
+          echo "保存错误摘要..."
+          {
+            echo "=== 错误摘要 ==="
+            echo "构建退出代码: $BUILD_EXIT_CODE"
+            echo ""
+            echo "=== 所有错误关键词 ==="
+            grep -i "error\|failed\|失败\|错误" build.log | tail -100
+            echo ""
+            echo "=== pythonforandroid 相关错误 ==="
+            grep -i "pythonforandroid\|toolchain\|p4a" build.log | tail -50
+            echo ""
+            echo "=== 最后 300 行日志 ==="
+            tail -300 build.log
+          } > logs/error_summary.txt || true
           
           exit 1
         fi
