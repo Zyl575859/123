@@ -67,49 +67,49 @@ jobs:
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
         fi
         
-    - name: 构建APK
+        - name: 构建APK
       run: |
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
         export ANDROID_NDK=$HOME/.buildozer/android/platform/android-ndk-r25b
         export PATH=$PATH:$ANDROID_HOME/tools/bin:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin
         # 设置环境变量以确保构建工具可以找到所有依赖
         export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/lib/pkgconfig
-        # 运行构建，保存完整日志
+        
+        echo "=========================================="
         echo "开始构建 APK..."
+        echo "=========================================="
+        
+        # 运行构建，保存完整日志
         buildozer android debug 2>&1 | tee build.log
         BUILD_EXIT_CODE=${PIPESTATUS[0]}
+        
+        echo ""
+        echo "=========================================="
+        echo "构建完成，退出代码: $BUILD_EXIT_CODE"
+        echo "=========================================="
+        
         if [ $BUILD_EXIT_CODE -ne 0 ]; then
+          echo ""
           echo "=========================================="
-          echo "构建失败，查看详细日志："
+          echo "构建失败！查找错误信息..."
           echo "=========================================="
+          echo ""
+          echo "1. 查找错误关键词："
+          grep -i "error\|failed\|失败\|错误" build.log | tail -30 || true
+          echo ""
+          echo "2. 查找 pythonforandroid 相关错误："
+          grep -i "pythonforandroid\|toolchain" build.log | tail -20 || true
+          echo ""
+          echo "3. 构建日志最后 100 行："
           tail -100 build.log
+          echo ""
+          echo "=========================================="
+          echo "请查看上面的错误信息以诊断问题"
+          echo "=========================================="
           exit 1
         fi
-        echo "构建命令执行完成，退出代码: $BUILD_EXIT_CODE"
         
-    - name: 查找APK文件
-      run: |
-        echo "=========================================="
-        echo "查找APK文件..."
-        echo "=========================================="
-        # 检查 bin/ 目录
-        echo "1. 检查 bin/ 目录："
-        if [ -d "bin" ]; then
-          ls -la bin/ || true
-          APK_FILES=$(find bin -name "*.apk" -type f 2>/dev/null)
-          if [ -n "$APK_FILES" ]; then
-            echo "找到 APK 文件："
-            echo "$APK_FILES"
-          else
-            echo "bin/ 目录中没有找到 APK 文件"
-          fi
-        else
-          echo "bin/ 目录不存在"
-        fi
-        echo ""
-        # 检查 .buildozer 目录
-        echo "2. 检查 .buildozer 目录："
-        if [ -d ".buildozer" ]; then
+        echo "✅ 构建成功完成！"
           APK_FILES=$(find .buildozer -name "*.apk" -type f 2>/dev/null)
           if [ -n "$APK_FILES" ]; then
             echo "找到 APK 文件："
