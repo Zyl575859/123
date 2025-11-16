@@ -35,35 +35,42 @@ jobs:
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
         mkdir -p $ANDROID_HOME/licenses
         
-    - name: 下载Android SDK和NDK
+    - name: 手动安装Android SDK Command-line Tools
       run: |
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
-        export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools
-        # 先运行 update 来下载 SDK 和 NDK（会失败，但会下载文件）
-        buildozer android update || true
+        mkdir -p $ANDROID_HOME/cmdline-tools
+        
+        # 下载并安装 command-line tools
+        cd /tmp
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip || wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+        unzip -q commandlinetools-linux-*.zip -d $ANDROID_HOME/cmdline-tools
+        mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest || true
+        
+        # 创建 buildozer 期望的旧路径（符号链接）
+        mkdir -p $ANDROID_HOME/tools/bin
+        if [ -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+          ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager $ANDROID_HOME/tools/bin/sdkmanager || true
+        fi
         
     - name: 接受Android SDK许可证
       run: |
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
-        # SDK 下载后，创建许可证文件
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+        
+        # 创建许可证文件
         mkdir -p $ANDROID_HOME/licenses
         echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
         echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
-        # 如果 sdkmanager 存在，也用它接受许可证
+        
+        # 使用 sdkmanager 接受所有许可证
         if [ -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-        fi
-        if [ -f "$ANDROID_HOME/tools/bin/sdkmanager" ]; then
-          yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses || true
         fi
         
     - name: 构建APK
       run: |
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
-        export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools
-        if [ -d "$ANDROID_HOME/cmdline-tools/latest/bin" ]; then
-          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
-        fi
+        export PATH=$PATH:$ANDROID_HOME/tools/bin:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin
         buildozer android debug
       
     - name: 上传APK
