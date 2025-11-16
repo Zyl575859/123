@@ -28,21 +28,42 @@ jobs:
         pip3 install --user buildozer cython
         echo "$HOME/.local/bin" >> $GITHUB_PATH
         
-    - name: 设置Android SDK环境变量和许可证
+    - name: 初始化Android SDK环境
       run: |
         mkdir -p ~/.android
         touch ~/.android/repositories.cfg
-        # 预先创建许可证文件目录和文件（buildozer会自动使用）
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+        mkdir -p $ANDROID_HOME/licenses
+        
+    - name: 下载Android SDK和NDK
+      run: |
+        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+        export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools
+        # 先运行 update 来下载 SDK 和 NDK（会失败，但会下载文件）
+        buildozer android update || true
+        
+    - name: 接受Android SDK许可证
+      run: |
+        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+        # SDK 下载后，创建许可证文件
         mkdir -p $ANDROID_HOME/licenses
         echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
         echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
+        # 如果 sdkmanager 存在，也用它接受许可证
+        if [ -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+        fi
+        if [ -f "$ANDROID_HOME/tools/bin/sdkmanager" ]; then
+          yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses || true
+        fi
         
     - name: 构建APK
       run: |
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
         export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools
-        # buildozer会自动下载SDK，许可证文件已预先准备好
+        if [ -d "$ANDROID_HOME/cmdline-tools/latest/bin" ]; then
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+        fi
         buildozer android debug
       
     - name: 上传APK
