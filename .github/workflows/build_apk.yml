@@ -76,10 +76,88 @@ jobs:
         export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/lib/pkgconfig
         # 运行构建，如果失败则显示详细错误
         buildozer android debug 2>&1 | tee build.log || (echo "构建失败，查看详细日志：" && tail -100 build.log && exit 1)
+        # 检查构建是否真的成功
+        echo "检查构建结果..."
+        if [ $? -eq 0 ]; then
+          echo "构建命令执行成功"
+        else
+          echo "构建命令执行失败"
+          exit 1
+        fi
+        
+    - name: 查找APK文件
+      run: |
+        echo "=========================================="
+        echo "查找APK文件..."
+        echo "=========================================="
+        # 检查 bin/ 目录
+        echo "1. 检查 bin/ 目录："
+        if [ -d "bin" ]; then
+          ls -la bin/ || true
+          APK_FILES=$(find bin -name "*.apk" -type f 2>/dev/null)
+          if [ -n "$APK_FILES" ]; then
+            echo "找到 APK 文件："
+            echo "$APK_FILES"
+          else
+            echo "bin/ 目录中没有找到 APK 文件"
+          fi
+        else
+          echo "bin/ 目录不存在"
+        fi
+        echo ""
+        # 检查 .buildozer 目录
+        echo "2. 检查 .buildozer 目录："
+        if [ -d ".buildozer" ]; then
+          APK_FILES=$(find .buildozer -name "*.apk" -type f 2>/dev/null)
+          if [ -n "$APK_FILES" ]; then
+            echo "找到 APK 文件："
+            echo "$APK_FILES"
+          else
+            echo ".buildozer 目录中没有找到 APK 文件"
+          fi
+        else
+          echo ".buildozer 目录不存在"
+        fi
+        echo ""
+        # 查找所有 APK 文件
+        echo "3. 在整个工作区查找所有 APK 文件："
+        APK_FILES=$(find . -name "*.apk" -type f 2>/dev/null | grep -v ".buildozer" | head -20)
+        if [ -n "$APK_FILES" ]; then
+          echo "找到 APK 文件："
+          echo "$APK_FILES"
+        else
+          echo "工作区中没有找到 APK 文件"
+        fi
+        echo ""
+        # 检查构建日志中的信息
+        echo "4. 检查构建日志中的 APK 信息："
+        if [ -f "build.log" ]; then
+          grep -i "apk\|build successful\|BUILD SUCCESSFUL" build.log | tail -10 || true
+        fi
+        echo "=========================================="
+      
+    - name: 复制APK到bin目录
+      run: |
+        echo "尝试将 APK 文件复制到 bin/ 目录..."
+        mkdir -p bin
+        # 查找所有 APK 文件
+        APK_FILES=$(find . -name "*.apk" -type f 2>/dev/null | head -5)
+        if [ -n "$APK_FILES" ]; then
+          echo "找到 APK 文件，复制到 bin/ 目录："
+          for apk in $APK_FILES; do
+            echo "复制: $apk -> bin/"
+            cp "$apk" bin/ || true
+          done
+          ls -la bin/*.apk || echo "复制后 bin/ 目录中没有 APK 文件"
+        else
+          echo "没有找到任何 APK 文件"
+        fi
       
     - name: 上传APK
       uses: actions/upload-artifact@v4
+      if: always()
       with:
         name: android-apk
         path: bin/*.apk
         retention-days: 30
+        if-no-files-found: warn
