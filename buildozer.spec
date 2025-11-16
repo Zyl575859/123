@@ -16,14 +16,10 @@ android.permissions = INTERNET,ACCESS_NETWORK_STATE
 android.api = 30
 android.minapi = 21
 android.ndk = 23b
-
 android.archs = arm64-v8a,armeabi-v7a
 android.enable_androidx = True
 
 [buildozer]
 log_level = 2
 warn_on_root = 1
-
-
-
 
