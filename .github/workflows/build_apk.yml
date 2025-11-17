@@ -142,8 +142,35 @@ jobs:
         echo "  .buildozer 目录:"
         ls -la .buildozer 2>/dev/null || echo "  .buildozer 目录不存在"
         echo ""
-        echo "5. 尝试直接运行 pythonforandroid 命令（测试）："
+        echo "5. 检查 Autotools 工具："
+        which autoconf && autoconf --version | head -1 || echo "❌ autoconf 未找到"
+        which automake && automake --version | head -1 || echo "❌ automake 未找到"
+        which libtool && libtool --version | head -1 || echo "❌ libtool 未找到"
+        which libtoolize && libtoolize --version | head -1 || echo "❌ libtoolize 未找到"
+        echo ""
+        echo "6. 尝试直接运行 pythonforandroid 命令（测试）："
         python3 -m pythonforandroid.toolchain --help 2>&1 | head -20 || echo "命令执行失败"
+        echo "=========================================="
+        
+    - name: 初始化 Autotools 环境
+      run: |
+        echo "=========================================="
+        echo "初始化 Autotools 环境"
+        echo "=========================================="
+        echo ""
+        echo "1. 检查 libtool 宏文件位置："
+        find /usr/share/aclocal -name "libtool.m4" 2>/dev/null | head -5 || echo "未找到 libtool.m4"
+        find /usr/share/libtool -name "*.m4" 2>/dev/null | head -5 || echo "未找到 libtool m4 文件"
+        echo ""
+        echo "2. 设置 ACLOCAL_PATH 环境变量："
+        export ACLOCAL_PATH=/usr/share/aclocal:/usr/share/libtool/config
+        echo "ACLOCAL_PATH=$ACLOCAL_PATH"
+        echo ""
+        echo "3. 验证 libtoolize 可用："
+        libtoolize --version || echo "❌ libtoolize 不可用"
+        echo ""
+        echo "4. 测试 libtool 宏："
+        aclocal --print-ac-dir || echo "❌ aclocal 不可用"
         echo "=========================================="
         
     - name: 构建APK
@@ -163,9 +190,18 @@ jobs:
         # 确保 Python 可以找到所有模块
         export PYTHONPATH=$HOME/.local/lib/python3.10/site-packages:$PYTHONPATH
         
-        # 抑制 Autotools 警告（已弃用的宏警告不会导致构建失败）
+        # 设置 Autotools 环境变量
+        export ACLOCAL_PATH=/usr/share/aclocal:/usr/share/libtool/config
         export AUTOTOOLS_WARNINGS=ignore
         export WARN_CFLAGS="-Wno-error"
+        
+        # 确保 libtool 宏可用
+        if [ -d "/usr/share/aclocal" ]; then
+          export ACLOCAL_PATH=/usr/share/aclocal:$ACLOCAL_PATH
+        fi
+        if [ -d "/usr/share/libtool/config" ]; then
+          export ACLOCAL_PATH=/usr/share/libtool/config:$ACLOCAL_PATH
+        fi
         
         # 确保工作目录正确
         cd $GITHUB_WORKSPACE
