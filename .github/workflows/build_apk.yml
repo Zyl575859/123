@@ -163,6 +163,10 @@ jobs:
         # 确保 Python 可以找到所有模块
         export PYTHONPATH=$HOME/.local/lib/python3.10/site-packages:$PYTHONPATH
         
+        # 抑制 Autotools 警告（已弃用的宏警告不会导致构建失败）
+        export AUTOTOOLS_WARNINGS=ignore
+        export WARN_CFLAGS="-Wno-error"
+        
         # 确保工作目录正确
         cd $GITHUB_WORKSPACE
         echo "当前工作目录: $(pwd)"
@@ -214,8 +218,8 @@ jobs:
             echo ""
           fi
           
-          echo "1. 查找所有错误关键词（最后 100 行）："
-          grep -i "error\|failed\|失败\|错误\|exception\|traceback" build.log | tail -100 || true
+          echo "1. 查找所有错误关键词（排除 Autotools 警告，最后 100 行）："
+          grep -i "error\|failed\|失败\|错误\|exception\|traceback" build.log | grep -v "警告\|warning\|已过时\|deprecated\|autoupdate" | tail -100 || true
           echo ""
           echo "2. 查找 pythonforandroid 相关错误（最后 50 行）："
           grep -i "pythonforandroid\|toolchain\|p4a" build.log | tail -50 || true
@@ -241,7 +245,10 @@ jobs:
           echo "9. 查找 storage-dir 相关错误："
           grep -i "storage-dir\|storage_dir\|storage dir" build.log | tail -20 || true
           echo ""
-          echo "10. 构建日志最后 300 行（完整上下文）："
+          echo "10. 查找 Autotools 相关错误（非警告）："
+          grep -i "autoreconf.*错误\|autoconf.*错误\|configure.*错误\|autotools.*错误" build.log | grep -v "警告\|warning" | tail -20 || true
+          echo ""
+          echo "11. 构建日志最后 300 行（完整上下文）："
           tail -300 build.log
           echo ""
           echo "=========================================="
@@ -279,7 +286,7 @@ jobs:
         echo "=========================================="
         echo "查找APK文件..."
         echo "=========================================="
-        echo "1. 检查 bin/ 目录："
+        echo "1. 检查 bin/ 目录（Buildozer 默认输出）："
         if [ -d "bin" ]; then
           ls -la bin/ || true
           APK_FILES=$(find bin -name "*.apk" -type f 2>/dev/null)
@@ -293,7 +300,21 @@ jobs:
           echo "bin/ 目录不存在"
         fi
         echo ""
-        echo "2. 检查 .buildozer 目录："
+        echo "2. 检查 dist/ 目录："
+        if [ -d "dist" ]; then
+          ls -la dist/ || true
+          APK_FILES=$(find dist -name "*.apk" -type f 2>/dev/null)
+          if [ -n "$APK_FILES" ]; then
+            echo "找到 APK 文件："
+            echo "$APK_FILES"
+          else
+            echo "dist/ 目录中没有找到 APK 文件"
+          fi
+        else
+          echo "dist/ 目录不存在"
+        fi
+        echo ""
+        echo "3. 检查 .buildozer 目录："
         if [ -d ".buildozer" ]; then
           APK_FILES=$(find .buildozer -name "*.apk" -type f 2>/dev/null)
           if [ -n "$APK_FILES" ]; then
@@ -306,7 +327,7 @@ jobs:
           echo ".buildozer 目录不存在"
         fi
         echo ""
-        echo "3. 在整个工作区查找所有 APK 文件："
+        echo "4. 在整个工作区查找所有 APK 文件："
         APK_FILES=$(find . -name "*.apk" -type f 2>/dev/null | head -20)
         if [ -n "$APK_FILES" ]; then
           echo "找到 APK 文件："
@@ -315,17 +336,18 @@ jobs:
           echo "工作区中没有找到 APK 文件"
         fi
         echo ""
-        echo "4. 检查构建日志中的 APK 信息："
+        echo "5. 检查构建日志中的 APK 信息："
         if [ -f "build.log" ]; then
           grep -i "apk\|build successful\|BUILD SUCCESSFUL\|package.*apk" build.log | tail -20 || true
         fi
         echo "=========================================="
       
-    - name: 复制APK到bin目录
+    - name: 复制APK到dist目录
       run: |
         echo "=========================================="
-        echo "查找并复制 APK 文件到 bin/ 目录"
+        echo "查找并复制 APK 文件到 dist/ 和 bin/ 目录"
         echo "=========================================="
+        mkdir -p dist
         mkdir -p bin
         echo "1. 在整个工作区查找所有 APK 文件..."
         ALL_APK_FILES=$(find . -name "*.apk" -type f 2>/dev/null)
@@ -333,9 +355,11 @@ jobs:
           echo "找到以下 APK 文件："
           echo "$ALL_APK_FILES"
           echo ""
-          echo "复制所有 APK 文件到 bin/ 目录..."
+          echo "复制所有 APK 文件到 dist/ 和 bin/ 目录..."
           for apk in $ALL_APK_FILES; do
             if [ -f "$apk" ]; then
+              echo "复制: $apk -> dist/"
+              cp "$apk" dist/ || true
               echo "复制: $apk -> bin/"
               cp "$apk" bin/ || true
             fi
@@ -353,7 +377,19 @@ jobs:
           fi
         fi
         echo ""
-        echo "2. 检查 bin/ 目录内容："
+        echo "2. 检查 dist/ 目录内容："
+        if [ -d "dist" ]; then
+          ls -lah dist/ || true
+          DIST_APK_COUNT=$(find dist -name "*.apk" -type f 2>/dev/null | wc -l)
+          if [ "$DIST_APK_COUNT" -gt 0 ]; then
+            echo "✅ dist/ 目录中有 $DIST_APK_COUNT 个 APK 文件"
+            find dist -name "*.apk" -type f -exec ls -lh {} \;
+          else
+            echo "❌ dist/ 目录中没有 APK 文件"
+          fi
+        fi
+        echo ""
+        echo "3. 检查 bin/ 目录内容："
         if [ -d "bin" ]; then
           ls -lah bin/ || true
           BIN_APK_COUNT=$(find bin -name "*.apk" -type f 2>/dev/null | wc -l)
@@ -382,6 +418,8 @@ jobs:
       continue-on-error: true
       with:
         name: android-apk
-        path: bin/*.apk
+        path: |
+          dist/*.apk
+          bin/*.apk
         retention-days: 30
         if-no-files-found: warn
