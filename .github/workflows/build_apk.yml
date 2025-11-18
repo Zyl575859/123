@@ -60,6 +60,17 @@ jobs:
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
         fi
         
+    - name: 全局定义 LT_SYS_SYMBOL_USCORE 宏（修复 Autotools 错误）
+      run: |
+        echo "在 /usr/share/aclocal 中定义 LT_SYS_SYMBOL_USCORE 宏..."
+        sudo mkdir -p /usr/share/aclocal
+        # 这个宏在新版本 libtool 中被移除，老旧的 configure.ac 仍然引用它
+        # 我们在全局 m4 目录里补一个空实现，避免 autoreconf 报“可能未定义宏”
+        echo 'AC_DEFUN([LT_SYS_SYMBOL_USCORE], [:])' | sudo tee /usr/share/aclocal/lt_sys_symbol_uscore.m4
+        echo "✅ 已写入 /usr/share/aclocal/lt_sys_symbol_uscore.m4"
+        echo "文件内容如下："
+        cat /usr/share/aclocal/lt_sys_symbol_uscore.m4
+        
     - name: 设置Autotools环境变量
       run: |
         # 查找所有可能的 libtool.m4 位置
@@ -427,3 +438,5 @@ jobs:
         path: |
           dist/*.apk
           bin/*.apk
+        retention-days: 30
+        if-no-files-found: warn
