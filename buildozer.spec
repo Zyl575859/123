@@ -15,15 +15,11 @@ android.version_code = 2
 android.permissions = INTERNET,ACCESS_NETWORK_STATE
 android.api = 30
 android.minapi = 21
-<<<<<<< HEAD
-android.ndk = 23b
-=======
 android.ndk = 25b
->>>>>>> b644f7e9abfbb1403a48db728de83447ed5f48d7
 android.archs = arm64-v8a,armeabi-v7a
 android.enable_androidx = True
 
 [buildozer]
 log_level = 2
-warn_on_root = 1 jobs = 1
-
+warn_on_root = 1
+jobs = 1
