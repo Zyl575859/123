@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # SSH连接工具
 
 一个功能强大的SSH连接工具，支持交互式命令输入和复制粘贴功能，并内置GM命令模板。
@@ -265,3 +266,6 @@ python ssh_tool.py -H 192.168.1.100 -u root -p mypass -e "df -h"
 
 MIT License
 
+=======
+# 123
+>>>>>>> 5aae0e192d8350f749ba70ec522372533c881713

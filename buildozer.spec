@@ -16,7 +16,6 @@ android.permissions = INTERNET,ACCESS_NETWORK_STATE
 android.api = 30
 android.minapi = 21
 android.ndk = 23b
-android.sdk = 30
 android.archs = arm64-v8a,armeabi-v7a
 android.enable_androidx = True
 

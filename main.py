@@ -244,7 +244,7 @@ class CommandScreen(Screen):
             readonly=True,
             background_color=(0.1, 0.1, 0.1, 1),
             foreground_color=(0, 1, 0, 1),
-            font_name='Courier'
+            font_name='Roboto'
         )
         scroll.add_widget(self.output_text)
         layout.add_widget(scroll)
