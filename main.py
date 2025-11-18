@@ -426,8 +426,21 @@ class CommandScreen(Screen):
 class SSHToolApp(App):
     """SSH工具应用主类"""
     
-    def build(self):
+       def build(self):
         """构建应用界面"""
+        # 设置默认字体（Android 系统字体支持中文）
+        if platform == 'android':
+            # Android 系统字体路径
+            try:
+                from kivy.core.text import LabelBase
+                # 使用 Android 系统字体（不指定具体文件，让系统自动选择）
+                # 设置默认字体为空，让 Kivy 使用系统默认字体
+                Label.font_name = ''
+                TextInput.font_name = ''
+                Button.font_name = ''
+            except:
+                pass
+        
         self.screen_manager = ScreenManager()
         
         # 连接界面
@@ -440,7 +453,7 @@ class SSHToolApp(App):
         self.command_screen.set_app(self)
         self.screen_manager.add_widget(self.command_screen)
         
-        return self.screen_manager
+        return self.screen_manager 
     
     def connect_to_server(self, host, port, username, password):
         """连接到服务器"""
