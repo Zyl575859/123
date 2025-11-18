@@ -23,18 +23,12 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y git zip unzip openjdk-11-jdk python3-pip build-essential autoconf automake libtool libtool-bin pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev python3-dev
         
-<<<<<<< HEAD
-    - name: 安装Buildozer和依赖
-      run: |
-        pip3 install --user buildozer cython
-=======
     - name: 安装Buildozer和所有依赖
       run: |
         # 使用与 pyjnius 兼容的 Cython 版本（<3），否则会出现 jnius.c 缺失的编译错误
         pip3 install --user --upgrade pip
         pip3 install --user 'Cython<3' wheel setuptools
         pip3 install --user buildozer python-for-android
->>>>>>> b644f7e9abfbb1403a48db728de83447ed5f48d7
         echo "$HOME/.local/bin" >> $GITHUB_PATH
         
     - name: 初始化Android SDK环境
@@ -73,7 +67,7 @@ jobs:
         echo "在 /usr/share/aclocal 中定义 LT_SYS_SYMBOL_USCORE 宏..."
         sudo mkdir -p /usr/share/aclocal
         # 这个宏在新版本 libtool 中被移除，老旧的 configure.ac 仍然引用它
-        # 我们在全局 m4 目录里补一个空实现，避免 autoreconf 报“可能未定义宏”
+        # 我们在全局 m4 目录里补一个空实现，避免 autoreconf 报"可能未定义宏"
         echo 'AC_DEFUN([LT_SYS_SYMBOL_USCORE], [:])' | sudo tee /usr/share/aclocal/lt_sys_symbol_uscore.m4
         echo "✅ 已写入 /usr/share/aclocal/lt_sys_symbol_uscore.m4"
         echo "文件内容如下："
