@@ -21,19 +21,430 @@ jobs:
     - name: 安装系统依赖
       run: |
         sudo apt-get update
-        sudo apt-get install -y git zip unzip openjdk-11-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev
+        sudo apt-get install -y git zip unzip openjdk-11-jdk python3-pip build-essential autoconf automake libtool libtool-bin pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev python3-dev
         
+<<<<<<< HEAD
     - name: 安装Buildozer和依赖
       run: |
         pip3 install --user buildozer cython
+=======
+    - name: 安装Buildozer和所有依赖
+      run: |
+        # 使用与 pyjnius 兼容的 Cython 版本（<3），否则会出现 jnius.c 缺失的编译错误
+        pip3 install --user --upgrade pip
+        pip3 install --user 'Cython<3' wheel setuptools
+        pip3 install --user buildozer python-for-android
+>>>>>>> b644f7e9abfbb1403a48db728de83447ed5f48d7
         echo "$HOME/.local/bin" >> $GITHUB_PATH
         
+    - name: 初始化Android SDK环境
+      run: |
+        mkdir -p ~/.android
+        touch ~/.android/repositories.cfg
+        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+        mkdir -p $ANDROID_HOME/licenses
+        
+    - name: 手动安装Android SDK Command-line Tools
+      run: |
+        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+        mkdir -p $ANDROID_HOME/cmdline-tools
+        cd /tmp
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip || wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+        unzip -q commandlinetools-linux-*.zip -d $ANDROID_HOME/cmdline-tools
+        mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest || true
+        mkdir -p $ANDROID_HOME/tools/bin
+        if [ -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+          ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager $ANDROID_HOME/tools/bin/sdkmanager || true
+        fi
+        
+    - name: 接受Android SDK许可证
+      run: |
+        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+        mkdir -p $ANDROID_HOME/licenses
+        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
+        echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
+        if [ -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+        fi
+        
+    - name: 全局定义 LT_SYS_SYMBOL_USCORE 宏（修复 Autotools 错误）
+      run: |
+        echo "在 /usr/share/aclocal 中定义 LT_SYS_SYMBOL_USCORE 宏..."
+        sudo mkdir -p /usr/share/aclocal
+        # 这个宏在新版本 libtool 中被移除，老旧的 configure.ac 仍然引用它
+        # 我们在全局 m4 目录里补一个空实现，避免 autoreconf 报“可能未定义宏”
+        echo 'AC_DEFUN([LT_SYS_SYMBOL_USCORE], [:])' | sudo tee /usr/share/aclocal/lt_sys_symbol_uscore.m4
+        echo "✅ 已写入 /usr/share/aclocal/lt_sys_symbol_uscore.m4"
+        echo "文件内容如下："
+        cat /usr/share/aclocal/lt_sys_symbol_uscore.m4
+        
+    - name: 设置Autotools环境变量
+      run: |
+        # 查找所有可能的 libtool.m4 位置
+        echo "查找 libtool.m4 文件..."
+        LIBTOOL_M4_PATHS=$(find /usr -name "libtool.m4" 2>/dev/null | head -5)
+        echo "找到的 libtool.m4 文件:"
+        echo "$LIBTOOL_M4_PATHS"
+        
+        # 构建 ACLOCAL_PATH，包含所有可能的位置
+        ACLOCAL_PATHS="/usr/share/aclocal"
+        
+        # 添加标准 libtool 位置
+        for libtool_dir in "/usr/share/libtool/config" "/usr/share/libtool" "/usr/share/aclocal"; do
+          if [ -d "$libtool_dir" ]; then
+            if [[ ":$ACLOCAL_PATHS:" != *":$libtool_dir:"* ]]; then
+              ACLOCAL_PATHS="$ACLOCAL_PATHS:$libtool_dir"
+            fi
+          fi
+        done
+        
+        # 从找到的 libtool.m4 文件提取目录
+        if [ -n "$LIBTOOL_M4_PATHS" ]; then
+          while IFS= read -r libtool_file; do
+            if [ -n "$libtool_file" ]; then
+              libtool_dir=$(dirname "$libtool_file")
+              if [[ ":$ACLOCAL_PATHS:" != *":$libtool_dir:"* ]]; then
+                ACLOCAL_PATHS="$ACLOCAL_PATHS:$libtool_dir"
+              fi
+            fi
+          done <<< "$LIBTOOL_M4_PATHS"
+        fi
+        
+        # 添加所有 automake 目录
+        for dir in /usr/share/automake-*; do
+          if [ -d "$dir" ]; then
+            if [[ ":$ACLOCAL_PATHS:" != *":$dir:"* ]]; then
+              ACLOCAL_PATHS="$ACLOCAL_PATHS:$dir"
+            fi
+          fi
+        done
+        
+        # 使用 GITHUB_ENV 设置全局环境变量
+        echo "ACLOCAL_PATH=$ACLOCAL_PATHS" >> $GITHUB_ENV
+        echo "AUTOMAKE=automake" >> $GITHUB_ENV
+        echo "AUTOCONF=autoconf" >> $GITHUB_ENV
+        echo "M4PATH=$ACLOCAL_PATHS" >> $GITHUB_ENV
+        
+        echo "已设置全局环境变量:"
+        echo "  ACLOCAL_PATH=$ACLOCAL_PATHS"
+        echo "  AUTOMAKE=automake"
+        echo "  AUTOCONF=autoconf"
+        echo "  M4PATH=$ACLOCAL_PATHS"
+        
+    - name: 创建autoreconf wrapper
+      run: |
+        mkdir -p ~/.local/bin
+        
+        # 构建默认 ACLOCAL_PATH
+        DEFAULT_ACLOCAL="/usr/share/aclocal"
+        for libtool_dir in "/usr/share/libtool/config" "/usr/share/libtool"; do
+          if [ -d "$libtool_dir" ]; then
+            DEFAULT_ACLOCAL="$DEFAULT_ACLOCAL:$libtool_dir"
+          fi
+        done
+        
+        # 查找 libtool.m4 并添加其目录
+        LIBTOOL_M4=$(find /usr -name "libtool.m4" 2>/dev/null | head -1)
+        if [ -n "$LIBTOOL_M4" ]; then
+          LIBTOOL_DIR=$(dirname "$LIBTOOL_M4")
+          if [[ ":$DEFAULT_ACLOCAL:" != *":$LIBTOOL_DIR:"* ]]; then
+            DEFAULT_ACLOCAL="$DEFAULT_ACLOCAL:$LIBTOOL_DIR"
+          fi
+        fi
+        
+        # 创建 wrapper 脚本（使用 echo 避免 heredoc 语法问题）
+        echo '#!/bin/bash' > ~/.local/bin/autoreconf
+        echo '# 如果 ACLOCAL_PATH 未设置，使用默认值' >> ~/.local/bin/autoreconf
+        echo 'if [ -z "$ACLOCAL_PATH" ]; then' >> ~/.local/bin/autoreconf
+        echo '  DEFAULT_ACLOCAL="/usr/share/aclocal"' >> ~/.local/bin/autoreconf
+        echo '  for libtool_dir in "/usr/share/libtool/config" "/usr/share/libtool"; do' >> ~/.local/bin/autoreconf
+        echo '    if [ -d "$libtool_dir" ]; then' >> ~/.local/bin/autoreconf
+        echo '      DEFAULT_ACLOCAL="$DEFAULT_ACLOCAL:$libtool_dir"' >> ~/.local/bin/autoreconf
+        echo '    fi' >> ~/.local/bin/autoreconf
+        echo '  done' >> ~/.local/bin/autoreconf
+        echo '  LIBTOOL_M4=$(find /usr -name "libtool.m4" 2>/dev/null | head -1)' >> ~/.local/bin/autoreconf
+        echo '  if [ -n "$LIBTOOL_M4" ]; then' >> ~/.local/bin/autoreconf
+        echo '    LIBTOOL_DIR=$(dirname "$LIBTOOL_M4")' >> ~/.local/bin/autoreconf
+        echo '    if [[ ":$DEFAULT_ACLOCAL:" != *":$LIBTOOL_DIR:"* ]]; then' >> ~/.local/bin/autoreconf
+        echo '      DEFAULT_ACLOCAL="$DEFAULT_ACLOCAL:$LIBTOOL_DIR"' >> ~/.local/bin/autoreconf
+        echo '    fi' >> ~/.local/bin/autoreconf
+        echo '  fi' >> ~/.local/bin/autoreconf
+        echo '  export ACLOCAL_PATH="$DEFAULT_ACLOCAL"' >> ~/.local/bin/autoreconf
+        echo 'fi' >> ~/.local/bin/autoreconf
+        echo 'export AUTOMAKE="${AUTOMAKE:-automake}"' >> ~/.local/bin/autoreconf
+        echo 'export AUTOCONF="${AUTOCONF:-autoconf}"' >> ~/.local/bin/autoreconf
+        echo 'export M4PATH="${M4PATH:-$ACLOCAL_PATH}"' >> ~/.local/bin/autoreconf
+        echo 'exec /usr/bin/autoreconf "$@"' >> ~/.local/bin/autoreconf
+        
+        chmod +x ~/.local/bin/autoreconf
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        echo "✅ autoreconf wrapper 已创建"
+        echo "   默认 ACLOCAL_PATH: $DEFAULT_ACLOCAL"
+        
     - name: 构建APK
-      run: buildozer android debug
+      run: |
+        # 清理可能冲突的环境变量
+        unset ANDROID_NDK_HOME || true
+        unset ANDROID_NDK_ROOT || true
+        unset ANDROID_NDK_LATEST_HOME || true
+        
+        # 设置正确的环境变量
+        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+        export ANDROID_NDK=$HOME/.buildozer/android/platform/android-ndk-r25b
+        export ANDROID_SDK_ROOT=$ANDROID_HOME
+        export PATH=$PATH:$ANDROID_HOME/tools/bin:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin
+        export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/lib/pkgconfig
+        export PYTHONPATH=$HOME/.local/lib/python3.10/site-packages:$PYTHONPATH
+        
+        # 强制设置 ACLOCAL_PATH，确保包含所有必要路径
+        ACLOCAL_PATHS="/usr/share/aclocal"
+        
+        # 添加所有可能的 libtool 位置
+        for libtool_dir in "/usr/share/libtool/config" "/usr/share/libtool" "/usr/share/aclocal"; do
+          if [ -d "$libtool_dir" ]; then
+            if [[ ":$ACLOCAL_PATHS:" != *":$libtool_dir:"* ]]; then
+              ACLOCAL_PATHS="$ACLOCAL_PATHS:$libtool_dir"
+            fi
+          fi
+        done
+        
+        # 查找并添加 libtool.m4 所在目录
+        LIBTOOL_M4=$(find /usr -name "libtool.m4" 2>/dev/null | head -1)
+        if [ -n "$LIBTOOL_M4" ]; then
+          LIBTOOL_DIR=$(dirname "$LIBTOOL_M4")
+          if [[ ":$ACLOCAL_PATHS:" != *":$LIBTOOL_DIR:"* ]]; then
+            ACLOCAL_PATHS="$ACLOCAL_PATHS:$LIBTOOL_DIR"
+          fi
+        fi
+        
+        # 添加所有 automake 目录
+        for dir in /usr/share/automake-*; do
+          if [ -d "$dir" ]; then
+            if [[ ":$ACLOCAL_PATHS:" != *":$dir:"* ]]; then
+              ACLOCAL_PATHS="$ACLOCAL_PATHS:$dir"
+            fi
+          fi
+        done
+        
+        # 如果 GITHUB_ENV 中已设置，合并路径
+        if [ -n "$ACLOCAL_PATH" ]; then
+          # 合并但不重复
+          for path in $(echo "$ACLOCAL_PATH" | tr ':' ' '); do
+            if [[ ":$ACLOCAL_PATHS:" != *":$path:"* ]]; then
+              ACLOCAL_PATHS="$ACLOCAL_PATHS:$path"
+            fi
+          done
+        fi
+        
+        export ACLOCAL_PATH=$ACLOCAL_PATHS
+        export AUTOMAKE="${AUTOMAKE:-automake}"
+        export AUTOCONF="${AUTOCONF:-autoconf}"
+        export M4PATH="${M4PATH:-$ACLOCAL_PATH}"
+        
+        # 确保工作目录正确
+        cd $GITHUB_WORKSPACE
+        
+        echo "=========================================="
+        echo "开始构建 APK..."
+        echo "=========================================="
+        echo "环境变量:"
+        echo "  ANDROID_HOME=$ANDROID_HOME"
+        echo "  ANDROID_NDK=$ANDROID_NDK"
+        echo "  ACLOCAL_PATH=$ACLOCAL_PATH"
+        echo "  AUTOMAKE=$AUTOMAKE"
+        echo "  AUTOCONF=$AUTOCONF"
+        echo "  M4PATH=$M4PATH"
+        echo "=========================================="
+        echo ""
+        
+        # 验证 libtool.m4 是否可访问
+        echo "验证 libtool 宏文件可访问性..."
+        for path_dir in $(echo "$ACLOCAL_PATH" | tr ':' ' '); do
+          if [ -d "$path_dir" ]; then
+            if [ -f "$path_dir/libtool.m4" ]; then
+              echo "  ✅ 找到: $path_dir/libtool.m4"
+            else
+              echo "  ⚠️  目录存在但无 libtool.m4: $path_dir"
+            fi
+          else
+            echo "  ❌ 目录不存在: $path_dir"
+          fi
+        done
+        echo ""
+        
+        # 测试 autoreconf wrapper
+        if [ -f ~/.local/bin/autoreconf ]; then
+          echo "✅ autoreconf wrapper 存在"
+          echo "   路径: ~/.local/bin/autoreconf"
+          echo "   权限: $(ls -l ~/.local/bin/autoreconf | awk '{print $1}')"
+        else
+          echo "⚠️  autoreconf wrapper 不存在"
+        fi
+        echo ""
+        
+        # 运行构建，保存完整日志
+        set -o pipefail
+        buildozer -v android debug 2>&1 | tee build.log
+        BUILD_EXIT_CODE=${PIPESTATUS[0]}
+        
+        echo ""
+        echo "=========================================="
+        echo "构建完成，退出代码: $BUILD_EXIT_CODE"
+        echo "=========================================="
+        
+        if [ $BUILD_EXIT_CODE -ne 0 ]; then
+          echo ""
+          echo "=========================================="
+          echo "构建失败！详细错误分析..."
+          echo "=========================================="
+          echo ""
+          
+          # 查找"命令失败"的位置，显示之前的错误
+          FAILED_LINE=$(grep -n "命令失败\|command failed\|Buildozer 无法执行\|Buildozer 未能执行\|未能执行最后的命令" build.log | tail -1 | cut -d: -f1)
+          if [ -n "$FAILED_LINE" ]; then
+            echo "找到'命令失败'在第 $FAILED_LINE 行"
+            echo "显示该位置之前的 200 行（实际错误）："
+            echo ""
+            START_LINE=$((FAILED_LINE - 200))
+            if [ $START_LINE -lt 1 ]; then
+              START_LINE=1
+            fi
+            sed -n "${START_LINE},${FAILED_LINE}p" build.log
+            echo ""
+            echo "=========================================="
+            echo ""
+          fi
+          
+          echo "1. 查找 LT_SYS_SYMBOL_USCORE 相关错误："
+          grep -i "LT_SYS_SYMBOL_USCORE\|可能未定义宏\|未定义宏" build.log | tail -30 || true
+          echo ""
+          echo "2. 查找 pythonforandroid.toolchain create 命令的完整输出："
+          grep -A 50 -B 10 "pythonforandroid.toolchain create" build.log | tail -100 || true
+          echo ""
+          echo "3. 查找所有错误关键词（排除警告，最后 150 行）："
+          grep -i "error\|failed\|失败\|错误\|exception\|traceback" build.log | grep -v "警告\|warning\|已过时\|deprecated\|autoupdate" | tail -150 || true
+          echo ""
+          echo "4. 查找 pythonforandroid 相关错误（最后 80 行）："
+          grep -i "pythonforandroid\|toolchain\|p4a" build.log | tail -80 || true
+          echo ""
+          echo "5. 查找 Autotools 相关错误（非警告）："
+          grep -i "autoreconf.*错误\|autoconf.*错误\|configure.*错误\|autotools.*错误" build.log | grep -v "警告\|warning" | tail -30 || true
+          echo ""
+          echo "6. 查找命令执行失败："
+          grep -i "命令失败\|command failed\|无法执行\|cannot execute\|ErrorReturnCode\|未能执行\|Buildozer 未能执行" build.log | tail -20 || true
+          echo ""
+          echo "7. 查找 Traceback 完整信息："
+          grep -A 30 -i "traceback" build.log | tail -80 || true
+          echo ""
+          echo "8. 构建日志最后 500 行（完整上下文）："
+          tail -500 build.log
+          echo ""
+          echo "=========================================="
+          
+          # 保存完整日志
+          mkdir -p logs
+          cp build.log logs/build.log || true
+          
+          # 保存错误摘要（包含"命令失败"之前的错误）
+          {
+            echo "=== 错误摘要 ==="
+            echo "构建退出代码: $BUILD_EXIT_CODE"
+            echo ""
+            echo "=== '命令失败'之前的错误（最后 200 行）==="
+            if [ -n "$FAILED_LINE" ]; then
+              START_LINE=$((FAILED_LINE - 200))
+              if [ $START_LINE -lt 1 ]; then
+                START_LINE=1
+              fi
+              sed -n "${START_LINE},${FAILED_LINE}p" build.log
+            fi
+            echo ""
+            echo "=== LT_SYS_SYMBOL_USCORE 相关错误 ==="
+            grep -i "LT_SYS_SYMBOL_USCORE\|可能未定义宏" build.log | tail -30
+            echo ""
+            echo "=== 所有错误关键词 ==="
+            grep -i "error\|failed\|失败\|错误" build.log | grep -v "警告\|warning" | tail -150
+            echo ""
+            echo "=== 最后 500 行日志 ==="
+            tail -500 build.log
+          } > logs/error_summary.txt || true
+          
+          exit 1
+        fi
+        
+        echo "✅ 构建成功完成！"
+        
+    - name: 查找APK文件
+      run: |
+        echo "=========================================="
+        echo "查找APK文件..."
+        echo "=========================================="
+        echo "1. 检查 bin/ 目录："
+        if [ -d "bin" ]; then
+          ls -la bin/ || true
+          find bin -name "*.apk" -type f 2>/dev/null || echo "bin/ 目录中没有找到 APK 文件"
+        else
+          echo "bin/ 目录不存在"
+        fi
+        echo ""
+        echo "2. 检查 dist/ 目录："
+        if [ -d "dist" ]; then
+          ls -la dist/ || true
+          find dist -name "*.apk" -type f 2>/dev/null || echo "dist/ 目录中没有找到 APK 文件"
+        else
+          echo "dist/ 目录不存在"
+        fi
+        echo ""
+        echo "3. 在整个工作区查找所有 APK 文件："
+        find . -name "*.apk" -type f 2>/dev/null | head -20 || echo "工作区中没有找到 APK 文件"
+        echo "=========================================="
+      
+    - name: 复制APK到dist目录
+      run: |
+        echo "=========================================="
+        echo "查找并复制 APK 文件到 dist/ 和 bin/ 目录"
+        echo "=========================================="
+        mkdir -p dist bin
+        ALL_APK_FILES=$(find . -name "*.apk" -type f 2>/dev/null)
+        if [ -n "$ALL_APK_FILES" ]; then
+          echo "找到以下 APK 文件："
+          echo "$ALL_APK_FILES"
+          echo ""
+          echo "复制所有 APK 文件..."
+          for apk in $ALL_APK_FILES; do
+            if [ -f "$apk" ]; then
+              cp "$apk" dist/ && cp "$apk" bin/ && echo "✅ 复制: $apk" || echo "❌ 复制失败: $apk"
+            fi
+          done
+        else
+          echo "未找到任何 APK 文件"
+        fi
+        echo ""
+        echo "检查 dist/ 和 bin/ 目录："
+        ls -lah dist/ bin/ 2>/dev/null || true
+        echo "=========================================="
+      
+    - name: 上传构建日志
+      uses: actions/upload-artifact@v4
+      if: failure()
+      continue-on-error: true
+      with:
+        name: build-logs
+        path: |
+          logs/*.log
+          logs/*.txt
+        retention-days: 7
+        if-no-files-found: ignore
       
     - name: 上传APK
       uses: actions/upload-artifact@v4
+      if: always()
+      continue-on-error: true
       with:
         name: android-apk
-        path: bin/*.apk
+        path: |
+          dist/*.apk
+          bin/*.apk
         retention-days: 30
+        if-no-files-found: warn
