@@ -96,14 +96,17 @@ jobs:
     - name: 创建autoreconf wrapper
       run: |
         mkdir -p ~/.local/bin
-        cat > ~/.local/bin/autoreconf << 'AUTORECONF_EOF'
-#!/bin/bash
+        python3 - <<'PY'
+        from pathlib import Path
+        script = """#!/bin/bash
 export ACLOCAL_PATH="${ACLOCAL_PATH:-/usr/share/aclocal:/usr/share/libtool/config}"
 export AUTOMAKE="${AUTOMAKE:-automake}"
 export AUTOCONF="${AUTOCONF:-autoconf}"
 export M4PATH="${M4PATH:-$ACLOCAL_PATH}"
 exec /usr/bin/autoreconf "$@"
-AUTORECONF_EOF
+"""
+        Path.home().joinpath(".local/bin/autoreconf").write_text(script)
+PY
         chmod +x ~/.local/bin/autoreconf
         echo "$HOME/.local/bin" >> $GITHUB_PATH
         echo "✅ autoreconf wrapper 已创建"
