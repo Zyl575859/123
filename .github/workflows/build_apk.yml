@@ -25,8 +25,10 @@ jobs:
         
     - name: 安装Buildozer和所有依赖
       run: |
-        pip3 install --user buildozer cython wheel setuptools
-        pip3 install --user python-for-android
+        # 使用与 pyjnius 兼容的 Cython 版本（<3），否则会出现 jnius.c 缺失的编译错误
+        pip3 install --user --upgrade pip
+        pip3 install --user 'Cython<3' wheel setuptools
+        pip3 install --user buildozer python-for-android
         echo "$HOME/.local/bin" >> $GITHUB_PATH
         
     - name: 初始化Android SDK环境
