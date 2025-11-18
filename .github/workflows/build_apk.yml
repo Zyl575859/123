@@ -239,6 +239,31 @@ jobs:
         echo "=========================================="
         echo ""
         
+        # 验证 libtool.m4 是否可访问
+        echo "验证 libtool 宏文件可访问性..."
+        for path_dir in $(echo "$ACLOCAL_PATH" | tr ':' ' '); do
+          if [ -d "$path_dir" ]; then
+            if [ -f "$path_dir/libtool.m4" ]; then
+              echo "  ✅ 找到: $path_dir/libtool.m4"
+            else
+              echo "  ⚠️  目录存在但无 libtool.m4: $path_dir"
+            fi
+          else
+            echo "  ❌ 目录不存在: $path_dir"
+          fi
+        done
+        echo ""
+        
+        # 测试 autoreconf wrapper
+        if [ -f ~/.local/bin/autoreconf ]; then
+          echo "✅ autoreconf wrapper 存在"
+          echo "   路径: ~/.local/bin/autoreconf"
+          echo "   权限: $(ls -l ~/.local/bin/autoreconf | awk '{print $1}')"
+        else
+          echo "⚠️  autoreconf wrapper 不存在"
+        fi
+        echo ""
+        
         # 运行构建，保存完整日志
         set -o pipefail
         buildozer -v android debug 2>&1 | tee build.log
@@ -257,7 +282,7 @@ jobs:
           echo ""
           
           # 查找"命令失败"的位置，显示之前的错误
-          FAILED_LINE=$(grep -n "命令失败\|command failed\|Buildozer 无法执行" build.log | tail -1 | cut -d: -f1)
+          FAILED_LINE=$(grep -n "命令失败\|command failed\|Buildozer 无法执行\|Buildozer 未能执行\|未能执行最后的命令" build.log | tail -1 | cut -d: -f1)
           if [ -n "$FAILED_LINE" ]; then
             echo "找到'命令失败'在第 $FAILED_LINE 行"
             echo "显示该位置之前的 200 行（实际错误）："
@@ -288,7 +313,7 @@ jobs:
           grep -i "autoreconf.*错误\|autoconf.*错误\|configure.*错误\|autotools.*错误" build.log | grep -v "警告\|warning" | tail -30 || true
           echo ""
           echo "6. 查找命令执行失败："
-          grep -i "命令失败\|command failed\|无法执行\|cannot execute\|ErrorReturnCode" build.log | tail -20 || true
+          grep -i "命令失败\|command failed\|无法执行\|cannot execute\|ErrorReturnCode\|未能执行\|Buildozer 未能执行" build.log | tail -20 || true
           echo ""
           echo "7. 查找 Traceback 完整信息："
           grep -A 30 -i "traceback" build.log | tail -80 || true
@@ -387,7 +412,9 @@ jobs:
       continue-on-error: true
       with:
         name: build-logs
-        path: logs/*.log
+        path: |
+          logs/*.log
+          logs/*.txt
         retention-days: 7
         if-no-files-found: ignore
       
@@ -400,5 +427,3 @@ jobs:
         path: |
           dist/*.apk
           bin/*.apk
-        retention-days: 30
-        if-no-files-found: warn
