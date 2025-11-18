@@ -62,25 +62,42 @@ jobs:
         
     - name: 设置Autotools环境变量
       run: |
-        # 查找 libtool.m4 的实际位置
-        LIBTOOL_M4=$(find /usr -name "libtool.m4" 2>/dev/null | head -1)
-        if [ -n "$LIBTOOL_M4" ]; then
-          LIBTOOL_DIR=$(dirname "$LIBTOOL_M4")
-        else
-          LIBTOOL_DIR="/usr/share/aclocal"
+        # 查找所有可能的 libtool.m4 位置
+        echo "查找 libtool.m4 文件..."
+        LIBTOOL_M4_PATHS=$(find /usr -name "libtool.m4" 2>/dev/null | head -5)
+        echo "找到的 libtool.m4 文件:"
+        echo "$LIBTOOL_M4_PATHS"
+        
+        # 构建 ACLOCAL_PATH，包含所有可能的位置
+        ACLOCAL_PATHS="/usr/share/aclocal"
+        
+        # 添加标准 libtool 位置
+        for libtool_dir in "/usr/share/libtool/config" "/usr/share/libtool" "/usr/share/aclocal"; do
+          if [ -d "$libtool_dir" ]; then
+            if [[ ":$ACLOCAL_PATHS:" != *":$libtool_dir:"* ]]; then
+              ACLOCAL_PATHS="$ACLOCAL_PATHS:$libtool_dir"
+            fi
+          fi
+        done
+        
+        # 从找到的 libtool.m4 文件提取目录
+        if [ -n "$LIBTOOL_M4_PATHS" ]; then
+          while IFS= read -r libtool_file; do
+            if [ -n "$libtool_file" ]; then
+              libtool_dir=$(dirname "$libtool_file")
+              if [[ ":$ACLOCAL_PATHS:" != *":$libtool_dir:"* ]]; then
+                ACLOCAL_PATHS="$ACLOCAL_PATHS:$libtool_dir"
+              fi
+            fi
+          done <<< "$LIBTOOL_M4_PATHS"
         fi
         
-        # 构建 ACLOCAL_PATH
-        ACLOCAL_PATHS="/usr/share/aclocal"
-        if [ -d "/usr/share/libtool/config" ]; then
-          ACLOCAL_PATHS="$ACLOCAL_PATHS:/usr/share/libtool/config"
-        fi
-        if [ -n "$LIBTOOL_DIR" ] && [ "$LIBTOOL_DIR" != "/usr/share/aclocal" ]; then
-          ACLOCAL_PATHS="$ACLOCAL_PATHS:$LIBTOOL_DIR"
-        fi
+        # 添加所有 automake 目录
         for dir in /usr/share/automake-*; do
           if [ -d "$dir" ]; then
-            ACLOCAL_PATHS="$ACLOCAL_PATHS:$dir"
+            if [[ ":$ACLOCAL_PATHS:" != *":$dir:"* ]]; then
+              ACLOCAL_PATHS="$ACLOCAL_PATHS:$dir"
+            fi
           fi
         done
         
@@ -92,19 +109,61 @@ jobs:
         
         echo "已设置全局环境变量:"
         echo "  ACLOCAL_PATH=$ACLOCAL_PATHS"
+        echo "  AUTOMAKE=automake"
+        echo "  AUTOCONF=autoconf"
+        echo "  M4PATH=$ACLOCAL_PATHS"
         
     - name: 创建autoreconf wrapper
       run: |
         mkdir -p ~/.local/bin
-        echo '#!/bin/bash' > ~/.local/bin/autoreconf
-        echo 'export ACLOCAL_PATH="${ACLOCAL_PATH:-/usr/share/aclocal:/usr/share/libtool/config}"' >> ~/.local/bin/autoreconf
-        echo 'export AUTOMAKE="${AUTOMAKE:-automake}"' >> ~/.local/bin/autoreconf
-        echo 'export AUTOCONF="${AUTOCONF:-autoconf}"' >> ~/.local/bin/autoreconf
-        echo 'export M4PATH="${M4PATH:-$ACLOCAL_PATH}"' >> ~/.local/bin/autoreconf
-        echo 'exec /usr/bin/autoreconf "$@"' >> ~/.local/bin/autoreconf
+        
+        # 构建默认 ACLOCAL_PATH
+        DEFAULT_ACLOCAL="/usr/share/aclocal"
+        for libtool_dir in "/usr/share/libtool/config" "/usr/share/libtool"; do
+          if [ -d "$libtool_dir" ]; then
+            DEFAULT_ACLOCAL="$DEFAULT_ACLOCAL:$libtool_dir"
+          fi
+        done
+        
+        # 查找 libtool.m4 并添加其目录
+        LIBTOOL_M4=$(find /usr -name "libtool.m4" 2>/dev/null | head -1)
+        if [ -n "$LIBTOOL_M4" ]; then
+          LIBTOOL_DIR=$(dirname "$LIBTOOL_M4")
+          if [[ ":$DEFAULT_ACLOCAL:" != *":$LIBTOOL_DIR:"* ]]; then
+            DEFAULT_ACLOCAL="$DEFAULT_ACLOCAL:$LIBTOOL_DIR"
+          fi
+        fi
+        
+        # 创建 wrapper 脚本
+        cat > ~/.local/bin/autoreconf << 'WRAPPER_SCRIPT'
+#!/bin/bash
+# 如果 ACLOCAL_PATH 未设置，使用默认值
+if [ -z "$ACLOCAL_PATH" ]; then
+  DEFAULT_ACLOCAL="/usr/share/aclocal"
+  for libtool_dir in "/usr/share/libtool/config" "/usr/share/libtool"; do
+    if [ -d "$libtool_dir" ]; then
+      DEFAULT_ACLOCAL="$DEFAULT_ACLOCAL:$libtool_dir"
+    fi
+  done
+  LIBTOOL_M4=$(find /usr -name "libtool.m4" 2>/dev/null | head -1)
+  if [ -n "$LIBTOOL_M4" ]; then
+    LIBTOOL_DIR=$(dirname "$LIBTOOL_M4")
+    if [[ ":$DEFAULT_ACLOCAL:" != *":$LIBTOOL_DIR:"* ]]; then
+      DEFAULT_ACLOCAL="$DEFAULT_ACLOCAL:$LIBTOOL_DIR"
+    fi
+  fi
+  export ACLOCAL_PATH="$DEFAULT_ACLOCAL"
+fi
+export AUTOMAKE="${AUTOMAKE:-automake}"
+export AUTOCONF="${AUTOCONF:-autoconf}"
+export M4PATH="${M4PATH:-$ACLOCAL_PATH}"
+exec /usr/bin/autoreconf "$@"
+WRAPPER_SCRIPT
+        
         chmod +x ~/.local/bin/autoreconf
         echo "$HOME/.local/bin" >> $GITHUB_PATH
         echo "✅ autoreconf wrapper 已创建"
+        echo "   默认 ACLOCAL_PATH: $DEFAULT_ACLOCAL"
         
     - name: 构建APK
       run: |
@@ -121,14 +180,47 @@ jobs:
         export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/lib/pkgconfig
         export PYTHONPATH=$HOME/.local/lib/python3.10/site-packages:$PYTHONPATH
         
-        # 确保 ACLOCAL_PATH 已设置（从 GITHUB_ENV 继承）
-        if [ -z "$ACLOCAL_PATH" ]; then
-          ACLOCAL_PATHS="/usr/share/aclocal"
-          if [ -d "/usr/share/libtool/config" ]; then
-            ACLOCAL_PATHS="$ACLOCAL_PATHS:/usr/share/libtool/config"
+        # 强制设置 ACLOCAL_PATH，确保包含所有必要路径
+        ACLOCAL_PATHS="/usr/share/aclocal"
+        
+        # 添加所有可能的 libtool 位置
+        for libtool_dir in "/usr/share/libtool/config" "/usr/share/libtool" "/usr/share/aclocal"; do
+          if [ -d "$libtool_dir" ]; then
+            if [[ ":$ACLOCAL_PATHS:" != *":$libtool_dir:"* ]]; then
+              ACLOCAL_PATHS="$ACLOCAL_PATHS:$libtool_dir"
+            fi
           fi
-          export ACLOCAL_PATH=$ACLOCAL_PATHS
+        done
+        
+        # 查找并添加 libtool.m4 所在目录
+        LIBTOOL_M4=$(find /usr -name "libtool.m4" 2>/dev/null | head -1)
+        if [ -n "$LIBTOOL_M4" ]; then
+          LIBTOOL_DIR=$(dirname "$LIBTOOL_M4")
+          if [[ ":$ACLOCAL_PATHS:" != *":$LIBTOOL_DIR:"* ]]; then
+            ACLOCAL_PATHS="$ACLOCAL_PATHS:$LIBTOOL_DIR"
+          fi
         fi
+        
+        # 添加所有 automake 目录
+        for dir in /usr/share/automake-*; do
+          if [ -d "$dir" ]; then
+            if [[ ":$ACLOCAL_PATHS:" != *":$dir:"* ]]; then
+              ACLOCAL_PATHS="$ACLOCAL_PATHS:$dir"
+            fi
+          fi
+        done
+        
+        # 如果 GITHUB_ENV 中已设置，合并路径
+        if [ -n "$ACLOCAL_PATH" ]; then
+          # 合并但不重复
+          for path in $(echo "$ACLOCAL_PATH" | tr ':' ' '); do
+            if [[ ":$ACLOCAL_PATHS:" != *":$path:"* ]]; then
+              ACLOCAL_PATHS="$ACLOCAL_PATHS:$path"
+            fi
+          done
+        fi
+        
+        export ACLOCAL_PATH=$ACLOCAL_PATHS
         export AUTOMAKE="${AUTOMAKE:-automake}"
         export AUTOCONF="${AUTOCONF:-autoconf}"
         export M4PATH="${M4PATH:-$ACLOCAL_PATH}"
