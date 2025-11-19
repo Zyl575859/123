@@ -23,7 +23,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y git zip unzip openjdk-11-jdk python3-pip build-essential autoconf automake libtool libtool-bin pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev python3-dev
         
-        - name: 安装Buildozer和所有依赖
+    - name: 安装Buildozer和所有依赖
       run: |
         # 使用与 pyjnius 兼容的 Cython 版本（>=0.29,<3），确保支持 Kivy 和 pyjnius
         pip3 install --user --upgrade pip
