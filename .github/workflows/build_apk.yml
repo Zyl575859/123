@@ -69,7 +69,7 @@ jobs:
         echo "在 /usr/share/aclocal 中定义 LT_SYS_SYMBOL_USCORE 宏..."
         sudo mkdir -p /usr/share/aclocal
         # 这个宏在新版本 libtool 中被移除，老旧的 configure.ac 仍然引用它
-        # 我们在全局 m4 目录里补一个空实现，避免 autoreconf 报"可能未定义宏"
+        # 我们在全局 m4 目录里补一个空实现，避免 autoreconf 报“可能未定义宏”
         echo 'AC_DEFUN([LT_SYS_SYMBOL_USCORE], [:])' | sudo tee /usr/share/aclocal/lt_sys_symbol_uscore.m4
         echo "✅ 已写入 /usr/share/aclocal/lt_sys_symbol_uscore.m4"
         echo "文件内容如下："
@@ -256,6 +256,10 @@ jobs:
         # 设置 Cython 环境变量，确保重新生成 C 文件
         export CYTHON_FORCE_REGEN=1
         export CYTHONIZE=1
+        
+        # 设置 Python 环境变量，确保 Cython 能找到所有模块
+        export PYTHONUNBUFFERED=1
+        export PYTHONDONTWRITEBYTECODE=1
         
         echo "=========================================="
         echo "开始构建 APK..."
